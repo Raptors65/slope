@@ -5,3 +5,6 @@ plans/
 docs/
 
 .env
+
+# Railtracks local viz / session data (when USE_RAILTRACKS=1)
+.railtracks/

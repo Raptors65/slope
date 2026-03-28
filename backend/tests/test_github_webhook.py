@@ -65,23 +65,29 @@ def test_action_not_assigned(client: TestClient) -> None:
     assert r.status_code == 200
 
 
-@patch("app.pipeline.webhook_jobs.github_api.post_issue_comment", new_callable=AsyncMock)
-@patch("app.pipeline.webhook_jobs.runs_store_svc.save_run", new_callable=AsyncMock)
-@patch("app.pipeline.webhook_jobs.team_memory_svc.remember_from_run", new_callable=AsyncMock)
-@patch("app.pipeline.webhook_jobs.team_memory_svc.recall_snippets", new_callable=AsyncMock)
+@patch("app.pipeline.assigned_issue_core.github_api.post_issue_comment", new_callable=AsyncMock)
+@patch("app.pipeline.assigned_issue_core.runs_store_svc.save_run", new_callable=AsyncMock)
 @patch(
-    "app.pipeline.webhook_jobs.onboarding_llm_svc.run_onboarding_map",
+    "app.pipeline.assigned_issue_core.team_memory_svc.remember_from_run",
     new_callable=AsyncMock,
 )
 @patch(
-    "app.pipeline.webhook_jobs.onboarding_llm_svc.run_ticket_analysis",
+    "app.pipeline.assigned_issue_core.team_memory_svc.recall_snippets",
     new_callable=AsyncMock,
 )
 @patch(
-    "app.pipeline.webhook_jobs.augment_relevance_svc.run_augment_relevance",
+    "app.pipeline.assigned_issue_core.onboarding_llm_svc.run_onboarding_map",
     new_callable=AsyncMock,
 )
-@patch("app.pipeline.webhook_jobs.ingest_repository", new_callable=AsyncMock)
+@patch(
+    "app.pipeline.assigned_issue_core.onboarding_llm_svc.run_ticket_analysis",
+    new_callable=AsyncMock,
+)
+@patch(
+    "app.pipeline.assigned_issue_core.augment_relevance_svc.run_augment_relevance",
+    new_callable=AsyncMock,
+)
+@patch("app.pipeline.assigned_issue_core.ingest_repository", new_callable=AsyncMock)
 @patch("app.api.github_webhook.issue_comments_contain_marker", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_assigned_accepted_202(
@@ -142,7 +148,7 @@ async def test_assigned_accepted_202(
     mock_post_comment.assert_not_awaited()
 
 
-@patch("app.pipeline.webhook_jobs.ingest_repository", new_callable=AsyncMock)
+@patch("app.pipeline.assigned_issue_core.ingest_repository", new_callable=AsyncMock)
 @patch("app.api.github_webhook.issue_comments_contain_marker", new_callable=AsyncMock)
 def test_idempotency_skip(
     mock_comments: AsyncMock,

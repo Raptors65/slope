@@ -1,12 +1,7 @@
 import logging
 
 from app.config import get_settings
-from app.services import augment_relevance as augment_relevance_svc
-from app.services import github_api
-from app.services import onboarding_llm as onboarding_llm_svc
-from app.services import runs_store as runs_store_svc
-from app.services import team_memory as team_memory_svc
-from app.services.repo_ingestion import ingest_repository
+from app.pipeline.assigned_issue_core import run_assigned_issue_pipeline_core
 
 log = logging.getLogger("slope.pipeline")
 
@@ -20,206 +15,28 @@ async def run_assigned_issue_pipeline(
     issue_title: str = "",
     issue_body: str = "",
 ) -> None:
-    """Ingest repo (Phase 3), Augment relevance on a shallow clone (Phase 5); later LLM + comment."""
+    """Ingest → analysis → Augment → memory → map → persist → GitHub comment."""
     settings = get_settings()
-    pat = settings.github_pat
-    if not pat:
-        log.error("No GITHUB_PAT; skipping pipeline for %s/%s#%s", owner, repo, issue_number)
-        return
+    if settings.use_railtracks:
+        from app.pipeline.railtracks_flow import run_assigned_issue_via_railtracks
 
-    try:
-        ingestion = await ingest_repository(
-            owner, repo, pat, default_branch_hint=default_branch
-        )
-    except Exception:
-        log.exception(
-            "Ingestion failed for %s/%s issue #%s", owner, repo, issue_number
-        )
-        return
-
-    log.info(
-        "Ingested %s/%s (issue #%s): branch=%s paths=%d tree_truncated=%s "
-        "readme_chars=%d snippets=%d",
-        owner,
-        repo,
-        issue_number,
-        ingestion.default_branch,
-        len(ingestion.tree_paths),
-        ingestion.tree_truncated,
-        len(ingestion.readme_text or ""),
-        len(ingestion.snippets),
-    )
-
-    title = issue_title.strip()
-    body = issue_body.strip()
-    if not title and not body:
-        try:
-            title, body = await github_api.fetch_issue(owner, repo, issue_number, pat)
-        except Exception:
-            log.exception(
-                "Could not fetch issue %s/%s#%s for Augment context",
-                owner,
-                repo,
-                issue_number,
-            )
-            title, body = "", ""
-
-    readme_excerpt = (ingestion.readme_text or "")[:8000]
-
-    analysis_llm = await onboarding_llm_svc.run_ticket_analysis(
-        issue_title=title,
-        issue_body=body,
-        tree_paths=ingestion.tree_paths,
-        settings=settings,
-    )
-    analysis = (
-        analysis_llm
-        if analysis_llm is not None
-        else onboarding_llm_svc.fallback_ticket_analysis(title, body)
-    )
-    log.info(
-        "Ticket analysis %s/%s#%s: source=%s area=%s type=%s terms=%d",
-        owner,
-        repo,
-        issue_number,
-        "openrouter" if analysis_llm is not None else "fallback",
-        (analysis.feature_area or "")[:120],
-        analysis.task_type,
-        len(analysis.suggested_search_terms),
-    )
-    analysis_json = analysis.model_dump_json()
-
-    augment_result = await augment_relevance_svc.run_augment_relevance(
-        owner,
-        repo,
-        pat,
-        default_branch=ingestion.default_branch,
-        issue_title=title,
-        issue_body=body,
-        tree_paths=ingestion.tree_paths,
-        readme_excerpt=readme_excerpt,
-        settings=settings,
-        ticket_analysis_json=analysis_json,
-    )
-    if augment_result is None:
-        log.warning(
-            "Augment step skipped or failed for %s/%s#%s", owner, repo, issue_number
-        )
-    else:
-        log.info(
-            "Augment relevance %s/%s#%s: files=%d notes=%d",
+        await run_assigned_issue_via_railtracks(
             owner,
             repo,
             issue_number,
-            len(augment_result.relevant_files),
-            len(augment_result.dependency_notes),
-        )
-        for i, f in enumerate(augment_result.relevant_files[:10], start=1):
-            log.debug("  %d. %s — %s", i, f.path, f.reason[:120])
-
-    memory_snippets = await team_memory_svc.recall_snippets(
-        owner,
-        repo,
-        feature_area=analysis.feature_area,
-        search_terms=analysis.suggested_search_terms,
-        settings=settings,
-    )
-    log.info(
-        "Memory recall %s/%s#%s: snippets=%d",
-        owner,
-        repo,
-        issue_number,
-        len(memory_snippets),
-    )
-
-    onboarding_map = await onboarding_llm_svc.run_onboarding_map(
-        analysis=analysis,
-        augment=augment_result,
-        memory_snippets=memory_snippets,
-        issue_title=title,
-        issue_body=body,
-        tree_paths=ingestion.tree_paths,
-        settings=settings,
-    )
-    if onboarding_map is None:
-        log.warning(
-            "Onboarding map skipped or failed for %s/%s#%s", owner, repo, issue_number
-        )
-    else:
-        log.info(
-            "Onboarding map %s/%s#%s: files=%d warnings=%d mermaid_chars=%d",
-            owner,
-            repo,
-            issue_number,
-            len(onboarding_map.files_to_read),
-            len(onboarding_map.warnings),
-            len(onboarding_map.mermaid or ""),
-        )
-        try:
-            await team_memory_svc.remember_from_run(
-                owner,
-                repo,
-                issue_number,
-                issue_title=title,
-                analysis=analysis,
-                omap=onboarding_map,
-                settings=settings,
-            )
-        except Exception:
-            log.exception(
-                "Memory write failed for %s/%s#%s (map was produced)",
-                owner,
-                repo,
-                issue_number,
-            )
-
-    image_urls = onboarding_llm_svc.image_urls_from_issue_markdown(body)
-    run_record = runs_store_svc.build_run_record(
-        owner=owner,
-        repo=repo,
-        issue_number=issue_number,
-        issue_title=title,
-        issue_body=body,
-        default_branch=ingestion.default_branch,
-        analysis=analysis,
-        augment_result=augment_result,
-        onboarding_map=onboarding_map,
-        memory_snippets=memory_snippets,
-        image_urls=image_urls,
-    )
-    try:
-        run_id = await runs_store_svc.save_run(run_record, settings=settings)
-        log.info("Saved onboarding run %s for %s/%s#%s", run_id, owner, repo, issue_number)
-    except Exception:
-        log.exception(
-            "Failed to persist onboarding run for %s/%s#%s",
-            owner,
-            repo,
-            issue_number,
+            default_branch=default_branch,
+            issue_title=issue_title,
+            issue_body=issue_body,
+            settings=settings,
         )
         return
 
-    if onboarding_map is not None:
-        comment_body = github_api.format_onboarding_map_comment_body(
-            dashboard_base_url=settings.dashboard_base_url,
-            run_id=run_id,
-        )
-        try:
-            await github_api.post_issue_comment(
-                owner, repo, issue_number, pat, body=comment_body
-            )
-            log.info(
-                "Posted onboarding map comment on %s/%s#%s (run %s)",
-                owner,
-                repo,
-                issue_number,
-                run_id,
-            )
-        except Exception:
-            log.exception(
-                "Failed to post GitHub comment for %s/%s#%s (run %s saved)",
-                owner,
-                repo,
-                issue_number,
-                run_id,
-            )
+    await run_assigned_issue_pipeline_core(
+        owner,
+        repo,
+        issue_number,
+        default_branch=default_branch,
+        issue_title=issue_title,
+        issue_body=issue_body,
+        settings=settings,
+    )

@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,6 +36,13 @@ class Settings(BaseSettings):
 
     # Comma-separated origins, e.g. "http://localhost:3000,http://127.0.0.1:3000"
     cors_origins: str = "http://localhost:3000"
+
+    # When true, run the assigned-issue pipeline through Railtracks (`.railtracks/` + `railtracks viz`).
+    # Default off (safe killswitch). Enable with USE_RAILTRACKS=1 or SLOPE_USE_RAILTRACKS=1.
+    use_railtracks: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("USE_RAILTRACKS", "SLOPE_USE_RAILTRACKS"),
+    )
 
     @property
     def cors_origin_list(self) -> list[str]:
