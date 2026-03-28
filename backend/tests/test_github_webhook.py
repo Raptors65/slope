@@ -7,6 +7,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from app.main import app
+from app.schemas.github_webhook import WebhookSkipReason
 from app.schemas.ingestion import RepoIngestion
 
 
@@ -123,5 +124,5 @@ def test_idempotency_skip(
         },
     )
     assert r.status_code == 200
-    assert r.json()["reason"] == "already_commented"
+    assert r.json()["reason"] == WebhookSkipReason.ALREADY_COMMENTED
     mock_ingest.assert_not_called()
