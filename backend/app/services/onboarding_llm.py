@@ -222,7 +222,7 @@ async def run_onboarding_map(
 Return JSON with exactly:
 - "files_to_read": array of {{"path": "repo-relative path", "summary": "one line why read this file, order matters"}}
 - "warnings": array of short strings — gotchas, ordering, deprecated areas
-- "mermaid": string — a valid Mermaid diagram (e.g. graph TD or flowchart LR) linking the key files/modules for this ticket. Use quoted node labels if needed. Can be empty string if not applicable.
+- "mermaid": string — a valid Mermaid flowchart (e.g. graph TD or flowchart LR). **Labels with parentheses must be double-quoted**, e.g. `A["app.handle()"]` not `A[app.handle()]` (unquoted parens break the parser). Same for diamond nodes with special characters when needed. Can be empty string if not applicable.
 
 JSON only."""
 
