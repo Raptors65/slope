@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     )
 
     openrouter_api_key: str | None = None
+    openrouter_model: str = "google/gemini-3.1-flash-lite-preview"
+    # Optional OpenRouter ranking / attribution headers (see OpenRouter docs).
+    openrouter_http_referer: str | None = None
+    openrouter_app_title: str | None = None
+
+    dashboard_base_url: str = "http://localhost:3000"
     github_pat: str | None = None
     github_webhook_secret: str | None = None
     # Preferred for backend: output of `auggie token print` after `auggie login`
