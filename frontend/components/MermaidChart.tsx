@@ -1,19 +1,43 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { appendGithubClickDirectives } from "@/lib/mermaidGithubClicks";
 import { normalizeMermaidSource } from "@/lib/mermaidNormalize";
+
+export type MermaidGithubContext = {
+  owner: string;
+  repo: string;
+  branch: string | null;
+};
 
 type Props = {
   chart: string;
+  github?: MermaidGithubContext | null;
 };
 
-export function MermaidChart({ chart }: Props) {
+/** Drop title attrs so Mermaid/browser tooltips don't fight our dark theme (see globals.css). */
+function stripSvgTitleAttributes(root: HTMLElement) {
+  root.querySelectorAll("[title]").forEach((el) => {
+    el.removeAttribute("title");
+  });
+}
+
+export function MermaidChart({ chart, github }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const text = normalizeMermaidSource(chart);
+    let text = normalizeMermaidSource(chart);
     if (!text) return;
+
+    if (github?.owner && github.repo) {
+      text = appendGithubClickDirectives(
+        text,
+        github.owner,
+        github.repo,
+        github.branch,
+      );
+    }
 
     let cancelled = false;
     const el = hostRef.current;
@@ -44,9 +68,13 @@ export function MermaidChart({ chart }: Props) {
           },
         });
         const id = `g${Math.random().toString(36).slice(2, 11)}`;
-        const { svg } = await mermaid.render(id, text);
+        const { svg, bindFunctions } = await mermaid.render(id, text);
         if (!cancelled && hostRef.current) {
           hostRef.current.innerHTML = svg;
+          if (typeof bindFunctions === "function") {
+            bindFunctions(hostRef.current);
+          }
+          stripSvgTitleAttributes(hostRef.current);
         }
       } catch (e) {
         if (!cancelled) {
@@ -58,7 +86,7 @@ export function MermaidChart({ chart }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [chart]);
+  }, [chart, github?.owner, github?.repo, github?.branch]);
 
   if (!normalizeMermaidSource(chart)) {
     return (

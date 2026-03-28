@@ -222,7 +222,7 @@ async def run_onboarding_map(
 Return JSON with exactly:
 - "files_to_read": array of {{"path": "repo-relative path", "summary": "one line why read this file, order matters"}}
 - "warnings": array of short strings — gotchas, ordering, deprecated areas
-- "mermaid": string — a valid Mermaid flowchart (e.g. graph TD or flowchart LR). **Labels with parentheses must be double-quoted**, e.g. `A["app.handle()"]` not `A[app.handle()]` (unquoted parens break the parser). Same for diamond nodes with special characters when needed. Can be empty string if not applicable.
+- "mermaid": string — a valid Mermaid flowchart (e.g. graph TD or flowchart LR). **Labels with parentheses must be double-quoted**, e.g. `A["app.handle()"]` not `A[app.handle()]` (unquoted parens break the parser). Same for diamond nodes with special characters when needed. **When a node is a concrete file, use the repo-relative path as the label** (match `files_to_read.path`: no leading slash, e.g. `src/api/handler.py`) so the dashboard can link it to GitHub; prose-only labels are fine for concepts or groups. Can be empty string if not applicable.
 
 JSON only."""
 
@@ -236,5 +236,5 @@ JSON only."""
         OnboardingMap,
         settings=settings,
         temperature=0.3,
-        repair_user_hint="The schema is OnboardingMap: files_to_read (array of path+summary), warnings (array of strings), mermaid (string).",
+        repair_user_hint="The schema is OnboardingMap: files_to_read (array of path+summary), warnings (array of strings), mermaid (string). Mermaid: quote labels with (); file nodes should use repo-relative path labels matching files_to_read.",
     )

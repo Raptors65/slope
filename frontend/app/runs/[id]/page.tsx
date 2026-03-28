@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { MarkdownBody } from "@/components/MarkdownBody";
 import { MermaidChart } from "@/components/MermaidChart";
 import { fetchRunById } from "@/lib/api";
+import { defaultGitBranch, githubBlobUrl } from "@/lib/githubUrls";
 import type { OnboardingMapPayload } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,7 @@ export default async function RunDetailPage({
   const featureArea = String(analysis.feature_area ?? "");
   const taskType = String(analysis.task_type ?? "");
   const risk = String(analysis.risk_surface ?? "");
+  const gitBranch = defaultGitBranch(run.default_branch);
 
   return (
     <div className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-8">
@@ -136,7 +138,14 @@ export default async function RunDetailPage({
           </h2>
           {map && map.files_to_read.length > 0 ? (
             <ol className="mt-4 space-y-4">
-              {map.files_to_read.map((f, idx) => (
+              {map.files_to_read.map((f, idx) => {
+                const ghFile = githubBlobUrl(
+                  run.owner,
+                  run.repo,
+                  gitBranch,
+                  f.path,
+                );
+                return (
                 <li
                   key={`${f.path}-${idx}`}
                   className="rounded-lg border border-[var(--surface-border)] bg-[var(--surface)]/40 p-4"
@@ -144,14 +153,26 @@ export default async function RunDetailPage({
                   <span className="font-mono text-sm text-[var(--accent)]">
                     {idx + 1}.
                   </span>{" "}
-                  <span className="font-mono text-sm text-[var(--text)]">
-                    {f.path}
-                  </span>
+                  {ghFile ? (
+                    <a
+                      href={ghFile}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-sm text-[var(--text)] underline decoration-[var(--accent)]/50 decoration-1 underline-offset-2 transition hover:text-[var(--accent)] hover:decoration-[var(--accent)]"
+                    >
+                      {f.path}
+                    </a>
+                  ) : (
+                    <span className="font-mono text-sm text-[var(--text)]">
+                      {f.path}
+                    </span>
+                  )}
                   <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
                     {f.summary}
                   </p>
                 </li>
-              ))}
+                );
+              })}
             </ol>
           ) : (
             <p className="mt-4 text-sm text-[var(--muted)]">No file list.</p>
@@ -202,7 +223,14 @@ export default async function RunDetailPage({
           Dependency map
         </h2>
         <div className="mt-4 rounded-2xl border border-[var(--accent)]/20 bg-[radial-gradient(ellipse_at_50%_0%,var(--accent-dim),transparent_55%)] p-6 sm:p-8">
-          <MermaidChart chart={map?.mermaid ?? ""} />
+          <MermaidChart
+            chart={map?.mermaid ?? ""}
+            github={{
+              owner: run.owner,
+              repo: run.repo,
+              branch: run.default_branch,
+            }}
+          />
         </div>
       </section>
     </div>

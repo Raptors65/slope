@@ -41,5 +41,5 @@ class OnboardingMap(BaseModel):
     )
     mermaid: str = Field(
         default="",
-        description="Mermaid diagram source (e.g. flowchart) for file relationships.",
+        description="Mermaid flowchart; file nodes should use repo-relative path labels (quoted if needed).",
     )

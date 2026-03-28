@@ -67,3 +67,26 @@ body::after {
 .mermaid-host svg {
   font-family: var(--font-mono), ui-monospace, monospace !important;
 }
+
+.mermaid-host .node.clickable,
+.mermaid-host .node.clickable * {
+  cursor: pointer;
+}
+
+/* Mermaid appends this to document.body; inline styles break dark-theme contrast — hide it. */
+body .mermaidTooltip {
+  display: none !important;
+}
+
+/* HTML labels render inside foreignObject; without this, hover can show light fills / wrong text color. */
+.mermaid-host svg foreignObject div,
+.mermaid-host svg foreignObject span {
+  background-color: transparent !important;
+  color: var(--text) !important;
+}
+
+.mermaid-host svg foreignObject div:hover,
+.mermaid-host svg foreignObject span:hover {
+  background-color: transparent !important;
+  color: var(--text) !important;
+}
