@@ -47,6 +47,7 @@ def test_run_augment_relevance_sync_uses_auggie_and_cleans_tmp() -> None:
             tree_paths=["a.py", "b.py"],
             readme_excerpt="# Hi",
             settings=settings,
+            ticket_analysis_json='{"task_type":"bugfix"}',
         )
 
     assert out == fake_result
@@ -54,5 +55,7 @@ def test_run_augment_relevance_sync_uses_auggie_and_cleans_tmp() -> None:
     clone_kw = mock_clone.call_args.kwargs
     assert clone_kw["branch"] == "main"
     mock_agent.run.assert_called_once()
+    instr = mock_agent.run.call_args[0][0]
+    assert "Prior LLM ticket analysis" in instr
     assert mock_agent.run.call_args.kwargs.get("return_type") is dict
     assert mock_rmtree.call_count >= 1

@@ -66,6 +66,14 @@ def test_action_not_assigned(client: TestClient) -> None:
 
 
 @patch(
+    "app.pipeline.webhook_jobs.onboarding_llm_svc.run_onboarding_map",
+    new_callable=AsyncMock,
+)
+@patch(
+    "app.pipeline.webhook_jobs.onboarding_llm_svc.run_ticket_analysis",
+    new_callable=AsyncMock,
+)
+@patch(
     "app.pipeline.webhook_jobs.augment_relevance_svc.run_augment_relevance",
     new_callable=AsyncMock,
 )
@@ -76,9 +84,13 @@ async def test_assigned_accepted_202(
     mock_comments: AsyncMock,
     mock_ingest: AsyncMock,
     mock_augment: AsyncMock,
+    mock_ticket_analysis: AsyncMock,
+    mock_onboarding_map: AsyncMock,
 ) -> None:
     mock_comments.return_value = False
     mock_augment.return_value = None
+    mock_ticket_analysis.return_value = None
+    mock_onboarding_map.return_value = None
     mock_ingest.return_value = RepoIngestion(
         owner="acme",
         repo="demo",
@@ -111,7 +123,9 @@ async def test_assigned_accepted_202(
         await asyncio.sleep(0.25)
     mock_comments.assert_awaited_once()
     mock_ingest.assert_awaited_once()
+    mock_ticket_analysis.assert_awaited_once()
     mock_augment.assert_awaited_once()
+    mock_onboarding_map.assert_awaited_once()
 
 
 @patch("app.pipeline.webhook_jobs.ingest_repository", new_callable=AsyncMock)

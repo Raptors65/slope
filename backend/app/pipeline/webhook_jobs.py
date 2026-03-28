@@ -3,6 +3,7 @@ import logging
 from app.config import get_settings
 from app.services import augment_relevance as augment_relevance_svc
 from app.services import github_api
+from app.services import onboarding_llm as onboarding_llm_svc
 from app.services.repo_ingestion import ingest_repository
 
 log = logging.getLogger("slope.pipeline")
@@ -62,6 +63,30 @@ async def run_assigned_issue_pipeline(
             title, body = "", ""
 
     readme_excerpt = (ingestion.readme_text or "")[:8000]
+
+    analysis_llm = await onboarding_llm_svc.run_ticket_analysis(
+        issue_title=title,
+        issue_body=body,
+        tree_paths=ingestion.tree_paths,
+        settings=settings,
+    )
+    analysis = (
+        analysis_llm
+        if analysis_llm is not None
+        else onboarding_llm_svc.fallback_ticket_analysis(title, body)
+    )
+    log.info(
+        "Ticket analysis %s/%s#%s: source=%s area=%s type=%s terms=%d",
+        owner,
+        repo,
+        issue_number,
+        "openrouter" if analysis_llm is not None else "fallback",
+        (analysis.feature_area or "")[:120],
+        analysis.task_type,
+        len(analysis.suggested_search_terms),
+    )
+    analysis_json = analysis.model_dump_json()
+
     augment_result = await augment_relevance_svc.run_augment_relevance(
         owner,
         repo,
@@ -72,6 +97,7 @@ async def run_assigned_issue_pipeline(
         tree_paths=ingestion.tree_paths,
         readme_excerpt=readme_excerpt,
         settings=settings,
+        ticket_analysis_json=analysis_json,
     )
     if augment_result is None:
         log.warning(
@@ -88,3 +114,27 @@ async def run_assigned_issue_pipeline(
         )
         for i, f in enumerate(augment_result.relevant_files[:10], start=1):
             log.debug("  %d. %s — %s", i, f.path, f.reason[:120])
+
+    onboarding_map = await onboarding_llm_svc.run_onboarding_map(
+        analysis=analysis,
+        augment=augment_result,
+        memory_snippets=[],
+        issue_title=title,
+        issue_body=body,
+        tree_paths=ingestion.tree_paths,
+        settings=settings,
+    )
+    if onboarding_map is None:
+        log.warning(
+            "Onboarding map skipped or failed for %s/%s#%s", owner, repo, issue_number
+        )
+    else:
+        log.info(
+            "Onboarding map %s/%s#%s: files=%d warnings=%d mermaid_chars=%d",
+            owner,
+            repo,
+            issue_number,
+            len(onboarding_map.files_to_read),
+            len(onboarding_map.warnings),
+            len(onboarding_map.mermaid or ""),
+        )

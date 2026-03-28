@@ -28,6 +28,7 @@ _augment_lock = asyncio.Lock()
 MAX_ISSUE_CHARS = 8_000
 MAX_TREE_PATHS_IN_PROMPT = 120
 MAX_README_CHARS = 4_000
+MAX_TICKET_ANALYSIS_JSON_CHARS = 4_000
 
 
 @contextmanager
@@ -69,6 +70,7 @@ def _build_instruction(
     issue_body: str,
     tree_paths: list[str],
     readme_excerpt: str,
+    ticket_analysis_json: str | None = None,
 ) -> str:
     body = issue_body.strip()
     if len(body) > MAX_ISSUE_CHARS:
@@ -79,6 +81,16 @@ def _build_instruction(
     if len(readme) > MAX_README_CHARS:
         readme = readme[: MAX_README_CHARS - 20] + "\n…[truncated]"
 
+    prior_block = ""
+    ta = (ticket_analysis_json or "").strip()
+    if ta:
+        if len(ta) > MAX_TICKET_ANALYSIS_JSON_CHARS:
+            ta = ta[: MAX_TICKET_ANALYSIS_JSON_CHARS - 30] + "\n…[truncated]"
+        prior_block = f"""
+## Prior LLM ticket analysis (JSON — hints only; verify in the workspace)
+{ta}
+"""
+
     return f"""You are helping an engineer onboard to a ticket in this repository.
 
 ## Issue title
@@ -86,7 +98,7 @@ def _build_instruction(
 
 ## Issue body
 {body or "(empty)"}
-
+{prior_block}
 ## Repository file paths (sample from API tree; not exhaustive)
 {tree_block}
 
@@ -114,6 +126,7 @@ def run_augment_relevance_sync(
     tree_paths: list[str],
     readme_excerpt: str,
     settings: Settings,
+    ticket_analysis_json: str | None = None,
 ) -> AugmentRelevanceResult:
     """
     Clone repo shallowly, run Auggie with structured return type, remove clone dir.
@@ -140,6 +153,7 @@ def run_augment_relevance_sync(
         issue_body=issue_body,
         tree_paths=tree_paths,
         readme_excerpt=readme_excerpt,
+        ticket_analysis_json=ticket_analysis_json,
     )
     model = _model_for_auggie(settings)
     cli_args = [
@@ -192,6 +206,7 @@ async def run_augment_relevance(
     tree_paths: list[str],
     readme_excerpt: str,
     settings: Settings,
+    ticket_analysis_json: str | None = None,
 ) -> AugmentRelevanceResult | None:
     """
     Run Phase 5 relevance pass; return None if Augment is skipped or fails (logged).
@@ -209,6 +224,7 @@ async def run_augment_relevance(
                 tree_paths=tree_paths,
                 readme_excerpt=readme_excerpt,
                 settings=settings,
+                ticket_analysis_json=ticket_analysis_json,
             )
         except Exception:
             log.exception(
