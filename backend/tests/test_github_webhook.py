@@ -1,9 +1,12 @@
+import asyncio
 import hashlib
 import hmac
 import json
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
+from httpx import ASGITransport
 from starlette.testclient import TestClient
 
 from app.main import app
@@ -62,14 +65,20 @@ def test_action_not_assigned(client: TestClient) -> None:
     assert r.status_code == 200
 
 
+@patch(
+    "app.pipeline.webhook_jobs.augment_relevance_svc.run_augment_relevance",
+    new_callable=AsyncMock,
+)
 @patch("app.pipeline.webhook_jobs.ingest_repository", new_callable=AsyncMock)
 @patch("app.api.github_webhook.issue_comments_contain_marker", new_callable=AsyncMock)
-def test_assigned_accepted_202(
+@pytest.mark.asyncio
+async def test_assigned_accepted_202(
     mock_comments: AsyncMock,
     mock_ingest: AsyncMock,
-    client: TestClient,
+    mock_augment: AsyncMock,
 ) -> None:
     mock_comments.return_value = False
+    mock_augment.return_value = None
     mock_ingest.return_value = RepoIngestion(
         owner="acme",
         repo="demo",
@@ -85,19 +94,24 @@ def test_assigned_accepted_202(
         "issue": {"number": 42},
     }
     body = json.dumps(payload).encode()
-    r = client.post(
-        "/github/webhook",
-        content=body,
-        headers={
-            "X-GitHub-Event": "issues",
-            "X-Hub-Signature-256": _sign(body, "whsec_test"),
-            "Content-Type": "application/json",
-        },
-    )
-    assert r.status_code == 202, r.text
-    assert r.json()["issue"] == 42
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.post(
+            "/github/webhook",
+            content=body,
+            headers={
+                "X-GitHub-Event": "issues",
+                "X-Hub-Signature-256": _sign(body, "whsec_test"),
+                "Content-Type": "application/json",
+            },
+        )
+        assert r.status_code == 202, r.text
+        assert r.json()["issue"] == 42
+        # Background pipeline runs on the same loop; give it a tick after the response.
+        await asyncio.sleep(0.25)
     mock_comments.assert_awaited_once()
     mock_ingest.assert_awaited_once()
+    mock_augment.assert_awaited_once()
 
 
 @patch("app.pipeline.webhook_jobs.ingest_repository", new_callable=AsyncMock)

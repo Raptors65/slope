@@ -33,6 +33,8 @@ class AssignedIssueRef:
     repo: str
     issue_number: int
     default_branch: str | None = None
+    issue_title: str = ""
+    issue_body: str = ""
 
 
 def _parse_assigned_issue(payload: dict[str, Any]) -> AssignedIssueRef | None:
@@ -47,8 +49,15 @@ def _parse_assigned_issue(payload: dict[str, Any]) -> AssignedIssueRef | None:
         return None
     db = repo_obj.get("default_branch")
     default_branch = db if isinstance(db, str) and db.strip() else None
+    title = issue.get("title")
+    body = issue.get("body")
     return AssignedIssueRef(
-        owner=o, repo=name, issue_number=num, default_branch=default_branch
+        owner=o,
+        repo=name,
+        issue_number=num,
+        default_branch=default_branch,
+        issue_title=str(title or ""),
+        issue_body=str(body or ""),
     )
 
 
@@ -176,6 +185,8 @@ async def github_webhook(request: Request) -> JSONResponse:
             ref.repo,
             ref.issue_number,
             default_branch=ref.default_branch,
+            issue_title=ref.issue_title,
+            issue_body=ref.issue_body,
         )
 
     spawn_background(_job())

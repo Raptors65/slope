@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     augment_session_auth: str | None = None
     augment_api_key: str | None = None
     augment_api_url: str | None = None
+    # Auggie model id: haiku4.5 | sonnet4.5 | sonnet4 | gpt5 (see auggie_sdk.agent.ModelType).
+    augment_model: str = "haiku4.5"
+    augment_timeout_seconds: int = 180
+    augment_max_cli_turns: int = 8
+    augment_clone_timeout_seconds: int = 180
 
     # Comma-separated origins, e.g. "http://localhost:3000,http://127.0.0.1:3000"
     cors_origins: str = "http://localhost:3000"

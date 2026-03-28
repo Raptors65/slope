@@ -18,6 +18,23 @@ def _headers(pat: str) -> dict[str, str]:
     }
 
 
+async def fetch_issue(
+    owner: str,
+    repo: str,
+    issue_number: int,
+    pat: str,
+) -> tuple[str, str]:
+    """Return (title, body) for the issue via GitHub REST."""
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        r = await client.get(url, headers=_headers(pat))
+        r.raise_for_status()
+        data = r.json()
+    title = data.get("title")
+    body = data.get("body")
+    return (str(title or ""), str(body or ""))
+
+
 async def issue_comments_contain_marker(
     owner: str,
     repo: str,

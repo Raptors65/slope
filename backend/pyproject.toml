@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "auggie-sdk>=0.1.12",
     "fastapi[standard]>=0.135.2",
     "httpx>=0.28.1",
     "openrouter>=0.8.0",
