@@ -24,71 +24,85 @@ from app.pipeline.pipeline_state import SlopePipelineState
 log = logging.getLogger("slope.pipeline.railtracks")
 
 
+# Railtracks may pass deep copies into each node, so in-place mutations on one call are not
+# visible to the next. Return `state` from every step and assign `state = await rt.call(...)`.
+
+
 @rt.function_node
-async def rt_step_pat(state: SlopePipelineState) -> None:
+async def rt_step_pat(state: SlopePipelineState) -> SlopePipelineState:
     await step_pat(state)
+    return state
 
 
 @rt.function_node
-async def rt_step_ingest(state: SlopePipelineState) -> None:
+async def rt_step_ingest(state: SlopePipelineState) -> SlopePipelineState:
     await step_ingest(state)
+    return state
 
 
 @rt.function_node
-async def rt_step_resolve_issue_text(state: SlopePipelineState) -> None:
+async def rt_step_resolve_issue_text(state: SlopePipelineState) -> SlopePipelineState:
     await step_resolve_issue_text(state)
+    return state
 
 
 @rt.function_node
-async def rt_step_ticket_analysis(state: SlopePipelineState) -> None:
+async def rt_step_ticket_analysis(state: SlopePipelineState) -> SlopePipelineState:
     await step_ticket_analysis(state)
+    return state
 
 
 @rt.function_node
-async def rt_step_augment(state: SlopePipelineState) -> None:
+async def rt_step_augment(state: SlopePipelineState) -> SlopePipelineState:
     await step_augment(state)
+    return state
 
 
 @rt.function_node
-async def rt_step_memory_recall(state: SlopePipelineState) -> None:
+async def rt_step_memory_recall(state: SlopePipelineState) -> SlopePipelineState:
     await step_memory_recall(state)
+    return state
 
 
 @rt.function_node
-async def rt_step_onboarding_map(state: SlopePipelineState) -> None:
+async def rt_step_onboarding_map(state: SlopePipelineState) -> SlopePipelineState:
     await step_onboarding_map(state)
+    return state
 
 
 @rt.function_node
-async def rt_step_memory_write(state: SlopePipelineState) -> None:
+async def rt_step_memory_write(state: SlopePipelineState) -> SlopePipelineState:
     await step_memory_write(state)
+    return state
 
 
 @rt.function_node
-async def rt_step_save_run(state: SlopePipelineState) -> None:
+async def rt_step_save_run(state: SlopePipelineState) -> SlopePipelineState:
     await step_save_run(state)
+    return state
 
 
 @rt.function_node
-async def rt_step_github_comment(state: SlopePipelineState) -> None:
+async def rt_step_github_comment(state: SlopePipelineState) -> SlopePipelineState:
     await step_github_comment(state)
+    return state
 
 
 @rt.function_node
 async def rt_slope_assigned_issue_entry(state: SlopePipelineState) -> None:
-    await rt.call(rt_step_pat, state)
+    state = await rt.call(rt_step_pat, state)
     if state.aborted:
         return
-    await rt.call(rt_step_ingest, state)
+    state = await rt.call(rt_step_ingest, state)
     if state.aborted:
         return
-    await rt.call(rt_step_resolve_issue_text, state)
-    await rt.call(rt_step_ticket_analysis, state)
-    await rt.call(rt_step_augment, state)
-    await rt.call(rt_step_memory_recall, state)
-    await rt.call(rt_step_onboarding_map, state)
-    await rt.call(rt_step_memory_write, state)
-    await rt.call(rt_step_save_run, state)
+    state = await rt.call(rt_step_resolve_issue_text, state)
+    state = await rt.call(rt_step_ticket_analysis, state)
+    state = await rt.call(rt_step_augment, state)
+    state = await rt.call(rt_step_memory_recall, state)
+    state = await rt.call(rt_step_onboarding_map, state)
+    state = await rt.call(rt_step_memory_write, state)
+    state = await rt.call(rt_step_save_run, state)
     if state.aborted:
         return
     await rt.call(rt_step_github_comment, state)

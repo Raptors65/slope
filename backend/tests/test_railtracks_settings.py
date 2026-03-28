@@ -3,8 +3,11 @@
 from app.config import Settings
 
 
-def test_use_railtracks_default_false() -> None:
-    s = Settings()
+def test_use_railtracks_default_false(monkeypatch) -> None:
+    monkeypatch.delenv("USE_RAILTRACKS", raising=False)
+    monkeypatch.delenv("SLOPE_USE_RAILTRACKS", raising=False)
+    # Skip `.env` so local USE_RAILTRACKS does not affect this assertion.
+    s = Settings(_env_file=None)
     assert s.use_railtracks is False
 
 

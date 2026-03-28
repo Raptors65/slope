@@ -170,7 +170,7 @@ dependencies = [
     { name = "httpx" },
     { name = "openrouter" },
     { name = "pydantic-settings" },
-    { name = "railtracks" },
+    { name = "railtracks", extra = ["cli"] },
 ]
 
 [package.dev-dependencies]
@@ -186,7 +186,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "openrouter", specifier = ">=0.8.0" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
-    { name = "railtracks", specifier = ">=0.1.0" },
+    { name = "railtracks", extras = ["cli"], specifier = ">=0.1.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -1459,6 +1459,12 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/8f/fb/44f68ecde42a25f7f879d063e9b6c933a708c32637258388d36c4e2542a8/railtracks-1.3.6.tar.gz", hash = "sha256:ac1fca02231ce5706e8bd641f939eef385484bf9c3cfecea078c5fb869828b38", size = 1578519, upload-time = "2026-03-27T00:19:21.398Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/02/e5/2e214126385b9e6fe072f6eb9859f5591e2a93bfcdbad89d88f47e14b59a/railtracks-1.3.6-py3-none-any.whl", hash = "sha256:a6f7ee8b49e54a0c790166b9a946e16ecb2d3812ea9bfa41634a7cf7cdfbf37f", size = 241036, upload-time = "2026-03-27T00:19:19.761Z" },
+]
+
+[package.optional-dependencies]
+cli = [
+    { name = "fastapi" },
+    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [[package]]
