@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     openrouter_app_title: str | None = None
 
     dashboard_base_url: str = "http://localhost:3000"
+    # Phase 6: JSON memory file (default backend/data/memory.json). Override for tests or custom path.
+    memory_store_path: str | None = None
     github_pat: str | None = None
     github_webhook_secret: str | None = None
     # Preferred for backend: output of `auggie token print` after `auggie login`

@@ -4,6 +4,7 @@ from app.config import get_settings
 from app.services import augment_relevance as augment_relevance_svc
 from app.services import github_api
 from app.services import onboarding_llm as onboarding_llm_svc
+from app.services import team_memory as team_memory_svc
 from app.services.repo_ingestion import ingest_repository
 
 log = logging.getLogger("slope.pipeline")
@@ -115,10 +116,25 @@ async def run_assigned_issue_pipeline(
         for i, f in enumerate(augment_result.relevant_files[:10], start=1):
             log.debug("  %d. %s — %s", i, f.path, f.reason[:120])
 
+    memory_snippets = await team_memory_svc.recall_snippets(
+        owner,
+        repo,
+        feature_area=analysis.feature_area,
+        search_terms=analysis.suggested_search_terms,
+        settings=settings,
+    )
+    log.info(
+        "Memory recall %s/%s#%s: snippets=%d",
+        owner,
+        repo,
+        issue_number,
+        len(memory_snippets),
+    )
+
     onboarding_map = await onboarding_llm_svc.run_onboarding_map(
         analysis=analysis,
         augment=augment_result,
-        memory_snippets=[],
+        memory_snippets=memory_snippets,
         issue_title=title,
         issue_body=body,
         tree_paths=ingestion.tree_paths,
@@ -138,3 +154,20 @@ async def run_assigned_issue_pipeline(
             len(onboarding_map.warnings),
             len(onboarding_map.mermaid or ""),
         )
+        try:
+            await team_memory_svc.remember_from_run(
+                owner,
+                repo,
+                issue_number,
+                issue_title=title,
+                analysis=analysis,
+                omap=onboarding_map,
+                settings=settings,
+            )
+        except Exception:
+            log.exception(
+                "Memory write failed for %s/%s#%s (map was produced)",
+                owner,
+                repo,
+                issue_number,
+            )
