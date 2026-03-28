@@ -11,6 +11,8 @@ def github_webhook_env(
     monkeypatch.setenv("GITHUB_PAT", "pat_test")
     mem = tmp_path_factory.mktemp("memory") / "memory.json"
     monkeypatch.setenv("MEMORY_STORE_PATH", str(mem))
+    runs = tmp_path_factory.mktemp("runs") / "runs.json"
+    monkeypatch.setenv("RUNS_STORE_PATH", str(runs))
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

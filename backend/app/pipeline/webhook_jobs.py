@@ -4,6 +4,7 @@ from app.config import get_settings
 from app.services import augment_relevance as augment_relevance_svc
 from app.services import github_api
 from app.services import onboarding_llm as onboarding_llm_svc
+from app.services import runs_store as runs_store_svc
 from app.services import team_memory as team_memory_svc
 from app.services.repo_ingestion import ingest_repository
 
@@ -170,4 +171,55 @@ async def run_assigned_issue_pipeline(
                 owner,
                 repo,
                 issue_number,
+            )
+
+    image_urls = onboarding_llm_svc.image_urls_from_issue_markdown(body)
+    run_record = runs_store_svc.build_run_record(
+        owner=owner,
+        repo=repo,
+        issue_number=issue_number,
+        issue_title=title,
+        issue_body=body,
+        default_branch=ingestion.default_branch,
+        analysis=analysis,
+        augment_result=augment_result,
+        onboarding_map=onboarding_map,
+        memory_snippets=memory_snippets,
+        image_urls=image_urls,
+    )
+    try:
+        run_id = await runs_store_svc.save_run(run_record, settings=settings)
+        log.info("Saved onboarding run %s for %s/%s#%s", run_id, owner, repo, issue_number)
+    except Exception:
+        log.exception(
+            "Failed to persist onboarding run for %s/%s#%s",
+            owner,
+            repo,
+            issue_number,
+        )
+        return
+
+    if onboarding_map is not None:
+        comment_body = github_api.format_onboarding_map_comment_body(
+            dashboard_base_url=settings.dashboard_base_url,
+            run_id=run_id,
+        )
+        try:
+            await github_api.post_issue_comment(
+                owner, repo, issue_number, pat, body=comment_body
+            )
+            log.info(
+                "Posted onboarding map comment on %s/%s#%s (run %s)",
+                owner,
+                repo,
+                issue_number,
+                run_id,
+            )
+        except Exception:
+            log.exception(
+                "Failed to post GitHub comment for %s/%s#%s (run %s saved)",
+                owner,
+                repo,
+                issue_number,
+                run_id,
             )

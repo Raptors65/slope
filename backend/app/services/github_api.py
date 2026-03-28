@@ -70,3 +70,37 @@ async def issue_comments_contain_marker(
             if len(batch) < 100:
                 return False
             page += 1
+
+
+def format_onboarding_map_comment_body(*, dashboard_base_url: str, run_id: str) -> str:
+    """GFM comment: friendly link text + idempotency HTML comment (Phase 8)."""
+    base = (dashboard_base_url or "").strip().rstrip("/") or "http://localhost:3000"
+    url = f"{base}/runs/{run_id}"
+    return (
+        f"Your onboarding map is ready — **[open the dashboard]({url})**.\n\n"
+        f"{ONBOARDING_MAP_MARKER}"
+    )
+
+
+async def post_issue_comment(
+    owner: str,
+    repo: str,
+    issue_number: int,
+    pat: str,
+    *,
+    body: str,
+) -> None:
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        r = await client.post(url, headers=_headers(pat), json={"body": body})
+        if not r.is_success:
+            log.warning(
+                "GitHub POST comment %s/%s#%s failed: %s %s — %s",
+                owner,
+                repo,
+                issue_number,
+                r.status_code,
+                getattr(r, "reason_phrase", "") or "",
+                (r.text or "")[:2000],
+            )
+        r.raise_for_status()

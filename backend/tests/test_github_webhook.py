@@ -65,6 +65,8 @@ def test_action_not_assigned(client: TestClient) -> None:
     assert r.status_code == 200
 
 
+@patch("app.pipeline.webhook_jobs.github_api.post_issue_comment", new_callable=AsyncMock)
+@patch("app.pipeline.webhook_jobs.runs_store_svc.save_run", new_callable=AsyncMock)
 @patch("app.pipeline.webhook_jobs.team_memory_svc.remember_from_run", new_callable=AsyncMock)
 @patch("app.pipeline.webhook_jobs.team_memory_svc.recall_snippets", new_callable=AsyncMock)
 @patch(
@@ -90,12 +92,15 @@ async def test_assigned_accepted_202(
     mock_onboarding_map: AsyncMock,
     mock_recall: AsyncMock,
     mock_remember: AsyncMock,
+    mock_save_run: AsyncMock,
+    mock_post_comment: AsyncMock,
 ) -> None:
     mock_comments.return_value = False
     mock_augment.return_value = None
     mock_ticket_analysis.return_value = None
     mock_onboarding_map.return_value = None
     mock_recall.return_value = []
+    mock_save_run.return_value = "00000000-0000-0000-0000-000000000001"
     mock_ingest.return_value = RepoIngestion(
         owner="acme",
         repo="demo",
@@ -133,6 +138,8 @@ async def test_assigned_accepted_202(
     mock_augment.assert_awaited_once()
     mock_onboarding_map.assert_awaited_once()
     mock_remember.assert_not_awaited()
+    mock_save_run.assert_awaited_once()
+    mock_post_comment.assert_not_awaited()
 
 
 @patch("app.pipeline.webhook_jobs.ingest_repository", new_callable=AsyncMock)
