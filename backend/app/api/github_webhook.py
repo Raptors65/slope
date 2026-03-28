@@ -1,12 +1,13 @@
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.config import get_settings
-from app.pipeline.webhook_jobs import run_assigned_issue_stub
+from app.pipeline.webhook_jobs import run_assigned_issue_pipeline
 from app.services.github_api import issue_comments_contain_marker
 from app.services.github_signature import verify_github_webhook_signature
 from app.tasks import spawn_background
@@ -16,17 +17,29 @@ log = logging.getLogger("slope.github.webhook")
 router = APIRouter(tags=["github"])
 
 
-def _parse_assigned_issue(payload: dict[str, Any]) -> tuple[str, str, int] | None:
-    repo = payload.get("repository") or {}
-    full_name = repo.get("full_name")
+@dataclass(frozen=True)
+class AssignedIssueRef:
+    owner: str
+    repo: str
+    issue_number: int
+    default_branch: str | None = None
+
+
+def _parse_assigned_issue(payload: dict[str, Any]) -> AssignedIssueRef | None:
+    repo_obj = payload.get("repository") or {}
+    full_name = repo_obj.get("full_name")
     if not full_name or "/" not in full_name:
         return None
-    owner, name = full_name.split("/", 1)
+    o, name = full_name.split("/", 1)
     issue = payload.get("issue") or {}
     num = issue.get("number")
     if not isinstance(num, int):
         return None
-    return owner, name, num
+    db = repo_obj.get("default_branch")
+    default_branch = db if isinstance(db, str) and db.strip() else None
+    return AssignedIssueRef(
+        owner=o, repo=name, issue_number=num, default_branch=default_branch
+    )
 
 
 @router.post("/github/webhook")
@@ -64,8 +77,8 @@ async def github_webhook(request: Request) -> Response:
             content=json.dumps({"skipped": True, "reason": "action_not_assigned"}),
         )
 
-    parsed = _parse_assigned_issue(payload)
-    if not parsed:
+    ref = _parse_assigned_issue(payload)
+    if not ref:
         log.warning("assigned payload missing repository.full_name or issue.number")
         return Response(
             status_code=200,
@@ -73,15 +86,13 @@ async def github_webhook(request: Request) -> Response:
             content=json.dumps({"skipped": True, "reason": "invalid_payload"}),
         )
 
-    owner, repo, issue_number = parsed
-
     if not settings.github_pat:
         log.error("GITHUB_PAT is not set; cannot check idempotency or call GitHub API")
         raise HTTPException(status_code=503, detail="github pat not configured")
 
     try:
         already = await issue_comments_contain_marker(
-            owner, repo, issue_number, settings.github_pat
+            ref.owner, ref.repo, ref.issue_number, settings.github_pat
         )
     except httpx.HTTPStatusError as e:
         log.exception("GitHub API error listing comments: %s", e)
@@ -101,7 +112,15 @@ async def github_webhook(request: Request) -> Response:
             content=json.dumps({"skipped": True, "reason": "already_commented"}),
         )
 
-    spawn_background(run_assigned_issue_stub(owner, repo, issue_number))
+    async def _job() -> None:
+        await run_assigned_issue_pipeline(
+            ref.owner,
+            ref.repo,
+            ref.issue_number,
+            default_branch=ref.default_branch,
+        )
+
+    spawn_background(_job())
 
     return Response(
         status_code=202,
@@ -109,8 +128,8 @@ async def github_webhook(request: Request) -> Response:
         content=json.dumps(
             {
                 "status": "accepted",
-                "repository": f"{owner}/{repo}",
-                "issue": issue_number,
+                "repository": f"{ref.owner}/{ref.repo}",
+                "issue": ref.issue_number,
             }
         ),
     )

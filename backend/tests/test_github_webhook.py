@@ -7,6 +7,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from app.main import app
+from app.schemas.ingestion import RepoIngestion
 
 
 def _sign(body: bytes, secret: str) -> str:
@@ -60,12 +61,26 @@ def test_action_not_assigned(client: TestClient) -> None:
     assert r.status_code == 200
 
 
+@patch("app.pipeline.webhook_jobs.ingest_repository", new_callable=AsyncMock)
 @patch("app.api.github_webhook.issue_comments_contain_marker", new_callable=AsyncMock)
-def test_assigned_accepted_202(mock_marker: AsyncMock, client: TestClient) -> None:
-    mock_marker.return_value = False
+def test_assigned_accepted_202(
+    mock_comments: AsyncMock,
+    mock_ingest: AsyncMock,
+    client: TestClient,
+) -> None:
+    mock_comments.return_value = False
+    mock_ingest.return_value = RepoIngestion(
+        owner="acme",
+        repo="demo",
+        default_branch="main",
+        tree_paths=[],
+        tree_truncated=False,
+        readme_text=None,
+        snippets=[],
+    )
     payload = {
         "action": "assigned",
-        "repository": {"full_name": "acme/demo"},
+        "repository": {"full_name": "acme/demo", "default_branch": "main"},
         "issue": {"number": 42},
     }
     body = json.dumps(payload).encode()
@@ -80,12 +95,18 @@ def test_assigned_accepted_202(mock_marker: AsyncMock, client: TestClient) -> No
     )
     assert r.status_code == 202, r.text
     assert r.json()["issue"] == 42
-    mock_marker.assert_awaited_once()
+    mock_comments.assert_awaited_once()
+    mock_ingest.assert_awaited_once()
 
 
+@patch("app.pipeline.webhook_jobs.ingest_repository", new_callable=AsyncMock)
 @patch("app.api.github_webhook.issue_comments_contain_marker", new_callable=AsyncMock)
-def test_idempotency_skip(mock_marker: AsyncMock, client: TestClient) -> None:
-    mock_marker.return_value = True
+def test_idempotency_skip(
+    mock_comments: AsyncMock,
+    mock_ingest: AsyncMock,
+    client: TestClient,
+) -> None:
+    mock_comments.return_value = True
     payload = {
         "action": "assigned",
         "repository": {"full_name": "acme/demo"},
@@ -103,3 +124,4 @@ def test_idempotency_skip(mock_marker: AsyncMock, client: TestClient) -> None:
     )
     assert r.status_code == 200
     assert r.json()["reason"] == "already_commented"
+    mock_ingest.assert_not_called()
