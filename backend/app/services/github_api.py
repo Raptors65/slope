@@ -73,11 +73,13 @@ async def issue_comments_contain_marker(
 
 
 def format_onboarding_map_comment_body(*, dashboard_base_url: str, run_id: str) -> str:
-    """GFM comment: friendly link text + idempotency HTML comment (Phase 8)."""
+    """GFM comment: friendly link text, attribution footer, idempotency HTML comment (Phase 8)."""
     base = (dashboard_base_url or "").strip().rstrip("/") or "http://localhost:3000"
     url = f"{base}/runs/{run_id}"
     return (
         f"Your onboarding map is ready — **[open the dashboard]({url})**.\n\n"
+        f"---\n\n"
+        f"*Posted by **Slope**.*\n\n"
         f"{ONBOARDING_MAP_MARKER}"
     )
 

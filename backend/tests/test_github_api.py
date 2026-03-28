@@ -43,6 +43,7 @@ def test_format_onboarding_map_comment_body_includes_link_and_marker() -> None:
     assert ONBOARDING_MAP_MARKER in body
     assert "http://localhost:3000/runs/abc-123" in body
     assert "open the dashboard" in body.lower()
+    assert "Posted by" in body and "Slope" in body
 
 
 @pytest.mark.asyncio
