@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.github_webhook import router as github_webhook_router
 from app.api.health import router as health_router
 from app.config import get_settings
 from app.logging_config import setup_slope_logging
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
     application.add_middleware(RequestContextMiddleware)
 
     application.include_router(health_router)
+    application.include_router(github_webhook_router)
 
     return application
 

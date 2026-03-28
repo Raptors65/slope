@@ -1,0 +1,9 @@
+{
+  "action": "assigned",
+  "repository": {
+    "full_name": "YOUR_GITHUB_LOGIN/YOUR_FORK_NAME"
+  },
+  "issue": {
+    "number": 1
+  }
+}
